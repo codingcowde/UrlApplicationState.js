@@ -8,21 +8,20 @@ class UrlApplicationState {
         this.previousState = {};
         this.currentState = this.getStateFromURL();
 
-       document.addEventListener('DOMContentLoaded', () => {
-    // If the current state is empty, trigger the change in stateful elements to ensure the loading of the default values
-    if (!Object.keys(this.currentState).length) {
-        document.querySelectorAll('.stateful').forEach(el => el.dispatchEvent(new Event('change')));
-    }
-
-    document.addEventListener('change', (event) => {
-        if (event.target.matches('input.stateful')) {
-            this.handleInputStateChange(event);
-        } else if (event.target.matches('select.stateful')) {
-            this.handleSelectStateChange(event);
-        }
-    });
-});
-      
+        document.addEventListener('DOMContentLoaded', () => {
+            // If the current state is empty, trigger the change in stateful elements to ensure the loading of the default values
+            if (!Object.keys(this.currentState).length) {
+                document.querySelectorAll('.stateful').forEach(el => el.dispatchEvent(new Event('change')));
+            }
+        });
+    
+        document.addEventListener('change', (event) => {
+            if (event.target.matches('input.stateful')) {
+                this.handleInputStateChange(event);
+            } else if (event.target.matches('select.stateful')) {
+                this.handleSelectStateChange(event);
+            }
+        });
     }
 
    async handleInputStateChange(event) {
@@ -109,8 +108,8 @@ async handleSelectStateChange(event) {
         this.currentState[key] = value;
         this.updateURLWithState(this.currentState);
         // trigger the stateChanged event
-        $(document).trigger('stateChanged')
-        //  applyState(state);
+       document.dispatchEvent(new Event('stateChanged'));
+
     }
 
     /***
