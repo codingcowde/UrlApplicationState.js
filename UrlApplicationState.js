@@ -1,51 +1,61 @@
-/***
- * We may switch to an global appstate object using the following class
+/**
+ * Manage your Applications state using the Url Search Parameters rather than local storage or cookies
  * 
  */
 
-class ApplicationState {
+class UrlApplicationState {
     constructor() {
         this.previousState = {};
         this.currentState = this.getStateFromURL();
 
-        $(document).on('change', 'input.stateful', (event) => this.handleInputStateChange(event));
-        $(document).on('change', 'select.stateful', (event) => this.handleSelectStateChange(event));
-          
-        // If the current state is empty, trigger the change in stateful elements to ensure the loading of the default values
-        $(document).ready( () => !Object.keys(this.currentState).length && $('.stateful').trigger("change") )
+       document.addEventListener('DOMContentLoaded', () => {
+    // If the current state is empty, trigger the change in stateful elements to ensure the loading of the default values
+    if (!Object.keys(this.currentState).length) {
+        document.querySelectorAll('.stateful').forEach(el => el.dispatchEvent(new Event('change')));
     }
 
-    async handleInputStateChange(event) {      
-        const element = $(event.target);
-        const key = element.attr('name');
-        let value = element.val();
-        const type = element.attr('type');
-        let update = true;
-
-        switch (type) {
-            case 'checkbox':
-                value = element.prop('checked') ? 'on' : '';
-                break;
-            case 'radio':
-                update = element.prop('checked');
-                break;
-            case 'password':
-            case 'email':
-                update = false;
-                break;
+    document.addEventListener('change', (event) => {
+        if (event.target.matches('input.stateful')) {
+            this.handleInputStateChange(event);
+        } else if (event.target.matches('select.stateful')) {
+            this.handleSelectStateChange(event);
         }
-
-        if (update) {
-            await this.updateState(key, value);
-        }
+    });
+});
+      
     }
-    
-    async handleSelectStateChange(event) {     
-        const element = $(event.target);
-        var key = element.attr('name');
-        var value = element.val();
+
+   async handleInputStateChange(event) {
+    const element = event.target;
+    const key = element.name;
+    let value = element.value;
+    const type = element.type;
+    let update = true;
+
+    switch (type) {
+        case 'checkbox':
+            value = element.checked ? 'on' : '';
+            break;
+        case 'radio':
+            update = element.checked;
+            break;
+        case 'password':
+        case 'email':
+            update = false;
+            break;
+    }
+
+    if (update) {
         await this.updateState(key, value);
-    }      
+    }
+}
+
+async handleSelectStateChange(event) {
+    const element = event.target;
+    const key = element.name;
+    const value = element.value;
+    await this.updateState(key, value);
+}
 
     /**
      * Retrieves the current Application state from the URL parameters
@@ -163,4 +173,4 @@ class ApplicationState {
 }
 
 // Create a new Global AppState Object
-const AppState = new ApplicationState()
+const UrlAppState = new UrlApplicationState()
