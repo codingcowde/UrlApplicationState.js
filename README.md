@@ -1,6 +1,10 @@
 # UrlApplicationState.js
 A simple JavaScript Object to store and read the application state from the URLs search parameters.
 
+## How it works
+The Object registers a listener that checks for changes in input and select elements with the '.stateful' class assigned.
+If the state changes it emits the 'stateChanged' event. 
+
 ## Usage
 
 Just download and include this file in your html
