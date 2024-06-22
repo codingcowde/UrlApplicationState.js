@@ -1,5 +1,5 @@
 /**
- * Manage your Applications state using the Url Search Parameters rather than local storage or cookies
+ * Manage the State using URL search parameters
  * 
  */
 
@@ -7,54 +7,70 @@ class UrlApplicationState {
     constructor() {
         this.previousState = {};
         this.currentState = this.getStateFromURL();
+        this.isLoadingState = false;
 
-        document.addEventListener('DOMContentLoaded', () => {
-            // If the current state is empty, trigger the change in stateful elements to ensure the loading of the default values
-            if (!Object.keys(this.currentState).length) {
-                document.querySelectorAll('.stateful').forEach(el => el.dispatchEvent(new Event('change')));
-            }
-        });
-    
-        document.addEventListener('change', (event) => {
-            if (event.target.matches('input.stateful')) {
-                this.handleInputStateChange(event);
-            } else if (event.target.matches('select.stateful')) {
-                this.handleSelectStateChange(event);
-            }
-        });
+        $(document).on('change', 'input.stateful', this.debounce(this.handleInputStateChange.bind(this), 600));
+        $(document).on('change', 'select.stateful', this.debounce(this.handleSelectStateChange.bind(this), 600));
+        // Load state
+        $(document).ready(() => !Object.keys(this.currentState).length && this._loadState())
     }
 
-   async handleInputStateChange(event) {
-    const element = event.target;
-    const key = element.name;
-    let value = element.value;
-    const type = element.type;
-    let update = true;
-
-    switch (type) {
-        case 'checkbox':
-            value = element.checked ? 'on' : '';
-            break;
-        case 'radio':
-            update = element.checked;
-            break;
-        case 'password':
-        case 'email':
-            update = false;
-            break;
+    /**
+     * Closure to keep the given function from being run by a bouncing event
+     * 
+     * @param {function} func 
+     * @param {int} delay in ms
+     * @returns 
+     */
+    debounce(func, delay) {
+        let timeout;
+        return function (...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), delay);
+        };
     }
 
-    if (update) {
-        await this.updateState(key, value);
-    }
-}
+    /**
+     * Handles state changes troggerd by input fields
+     * 
+     * @param {Event} event 
+     */
+    handleInputStateChange(event) {
+        const element = $(event.target);
+        const key = element.attr('name');
+        let value = element.val();
+        const type = element.attr('type');
+        let update = true;
 
-async handleSelectStateChange(event) {
-    const element = event.target;
-    const key = element.name;
-    const value = element.value;
-    await this.updateState(key, value);
-}
+        switch (type) {
+            case 'checkbox':
+                value = element.prop('checked') ? 'on' : '';
+                break;
+            case 'radio':
+                update = element.prop('checked');
+                break;
+            case 'password':
+            case 'email':
+                update = false;
+                break;
+        }
+
+        if (update) {
+            this.updateState(key, value);
+        }
+    }
+
+    /**
+     * Handles the state change triggered by a select field
+     * 
+     * @param {Event} event 
+     */
+    handleSelectStateChange(event) {
+        const element = $(event.target);
+        const key = element.attr('name');
+        const value = element.val();
+        this.updateState(key, value);
+    }
 
     /**
      * Retrieves the current Application state from the URL parameters
@@ -62,8 +78,8 @@ async handleSelectStateChange(event) {
      * @returns {object} state 
      */
     getStateFromURL() {
-        var queryParams = new URLSearchParams(window.location.search);
-        var state = {};
+        const queryParams = new URLSearchParams(window.location.search);
+        let state = {};
         queryParams.forEach((value, key) => {
             try {
                 state[key] = JSON.parse(value);
@@ -75,25 +91,6 @@ async handleSelectStateChange(event) {
     }
 
     /**
-     * Checks if only the specified key has changed in the state object.
-     *
-     * @param {string} key - The key to check for changes.
-     * @returns {boolean} True if only the specified key has changed, false otherwise.
-     */
-    hasOnlyKeyChanged(key) {
-        // Check if the specific key has changed.
-        const keyChanged = this.currentState[key] !== this.previousState[key];
-
-        // Check if other keys have also changed.
-        const otherKeysChanged = Object.keys(this.currentState).some(k => {
-            return k !== key && this.currentState[k] !== this.previousState[k];
-        });
-
-        return keyChanged && !otherKeysChanged;
-    }
-
-
-    /***
      * Updates the application state with a specified key and value
      * 
      * @param {string} key
@@ -101,15 +98,19 @@ async handleSelectStateChange(event) {
      * 
      * @calls updateURLWithState(state)
      */
-     async updateState (key, value) {
-        this.previousState = this.currentState;
-        this.currentState = await this.getStateFromURL(); 
+    updateState(key, value) {
+        this.previousState = { ...this.currentState };
+        // Update the state directly
+        value ? this.currentState[key] = value : delete this.currentState[key];
 
-        this.currentState[key] = value;
+        // Update the URL with the new state
         this.updateURLWithState(this.currentState);
-        // trigger the stateChanged event
-       document.dispatchEvent(new Event('stateChanged'));
 
+        // Save state if not currently loading from storage
+        !this.isLoadingState && this._saveState();
+
+        // Trigger the stateChanged event
+        $(document).trigger('stateChanged');
     }
 
     /***
@@ -118,8 +119,8 @@ async handleSelectStateChange(event) {
      * 
      * @param {object} state
      */
-     updateURLWithState (state) {
-        var url = new URL(window.location);
+    updateURLWithState(state) {
+        const url = new URL(window.location);
         url.search = ''; // Clear existing query params
 
         Object.keys(state).forEach(key => {
@@ -139,7 +140,7 @@ async handleSelectStateChange(event) {
      * @param {object} state
      * @returns {string}
      */
-    toSearchString (state = this.currentState) {
+    toSearchString(state = this.currentState) {
         let params = [];
 
         Object.keys(state).forEach(key => {
@@ -157,7 +158,7 @@ async handleSelectStateChange(event) {
      * @param {string} key
      * @returns {any}
      */
-    getState (key) {
+    getState(key) {
         const urlParams = new URLSearchParams(window.location.search);
         const value = urlParams.get(key);
         try {
@@ -168,8 +169,45 @@ async handleSelectStateChange(event) {
         }
     }
 
+    /**
+     * Save the current state to local storage
+     */
+    _saveState() {      
+        const stringified = JSON.stringify(this.currentState);
+        const url = window.location.pathname;
+        console.debug("Saving state as ", url, stringified);
+        window.localStorage.setItem(url, stringified);
+    }
+
+    /**
+     * Private method to load the state from storage
+     * If no stored state is found it will fallback to load the defaults set in the markup
+     */
+    async _loadState() {
+        // If the current state is empty, trigger the change in stateful elements to ensure the loading of the default values
+        this.isLoadingState = true; // Set flag to prevent saving
+
+        console.debug("Load State");
+        try {
+            const url = window.location.pathname;
+            const stringified = window.localStorage.getItem(url);
+            if (!stringified) {
+                throw "No Stored data";
+            }
+            const state = JSON.parse(stringified);
+            this.updateURLWithState(state);
+            this.currentState = state;
+            $(document).trigger('stateChanged', { source: 'load' });
+        } catch (error) {
+            console.debug(error);
+            $('.stateful').trigger("change");
+        } finally {
+            this.isLoadingState = false; // Reset flag
+
+        }
+    }
 
 }
 
 // Create a new Global AppState Object
-const UrlAppState = new UrlApplicationState()
+const AppState = new UrlApplicationState();
